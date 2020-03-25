@@ -53,7 +53,7 @@ draw_card <- function(n, report = c("suit", "value", "points", "name")){
 
 #### 1a)
 
-```{r question_1a}
+```{r question_1a, echo=FALSE}
 
 # what does print a call mean?
 
@@ -176,6 +176,8 @@ ci_99 <- make_intervals(.99)
 
 intervals <- bind_rows(ci_80, ci_90, ci_95, ci_99)
 
+# explain why you formatted it this way instead of in tuples
+
 intervals$interval <- paste(
   round(intervals$lower, digits = 2),
   round(intervals$upper, digits = 2),
@@ -185,14 +187,14 @@ intervals %>%
   select(level, interval) %>%  
   mutate(level = paste(level * 100, "%", sep = "")) %>%
   gt() %>% 
-  tab_header(title = "Confidence Intervals",
-             subtitle = "From Bootstrapped Sampling Distribution") %>% 
+  tab_header(title = "Confidence Intervals for Average Point Value",
+             subtitle = "Bootstrapped Resamples on a 12 Card Hand") %>% 
   cols_label(level = md("**Level**"),
              interval = md("**Interval**")) %>% 
   cols_align(align = "right",
              columns = vars(interval)) %>% 
   tab_source_note(source_note = 
-                    "Original sample mean: 7.167")
+                    "Original Sample Mean of 7.167")
 
 ```
 
@@ -216,37 +218,31 @@ width_ci <- function(n, level){
     pull(width)
 }
 
-widths_1 <- tibble(size_n = 1:52)
+widths_1 <- tibble(size_n = 2:52)
 
 widths_1 %<>% 
-  mutate(ci_width_90 = map_dbl(size_n, ~ width_ci(n = ., level = .9)),
-         ci_width_95 = map_dbl(size_n, ~ width_ci(n = ., level = .95)),
-         ci_width_99 = map_dbl(size_n, ~ width_ci(n = ., level = .99)))
+  mutate(width_90 = map_dbl(size_n, ~ width_ci(n = ., level = .9)),
+         width_95 = map_dbl(size_n, ~ width_ci(n = ., level = .95)),
+         width_99 = map_dbl(size_n, ~ width_ci(n = ., level = .99)))
 
 widths_1 %<>% 
-  pivot_longer(cols = ci_width_90:ci_width_99,
-               names_to = "level",
+  pivot_longer(cols = width_90:width_99,
+               names_to = "confidence_level",
                values_to = "ci_width")
 
 widths_1 %>% 
-  ggplot(aes(size_n, ci_width, color = level)) +
+  ggplot(aes(size_n, ci_width, color = confidence_level)) +
   geom_point() +
   theme_classic() +
   labs(title = "Width of Bootstrapped Confidence Intervals for Different Sample Sizes",
        subtitle = "Calculating the Mean Point Value from a Deck of Cards",
        x = "Sample Size",
-       y = "Width of Confidence Interval \n (Percentile Method)")
+       y = "Width of Confidence Interval \n (Percentile Method)") +
+  scale_color_discrete(name="Confidence Level",
+                         breaks=c("width_90", "width_95", "width_99"),
+                         labels=c("90%", "95%", "99%"))
 
 ```
 
-Replicate the plot below by completing the following:
-
-Write a function width_ci <- function(n, level) that draws a sample hand of n cards and creates a confidence interval at the appropriate level. As above, use the percentile method on a bootstrapped sampling distribution with 1000 samples to calculate your confidence interval.
-
-Set the seed to 6.
-
-Then, create a tibble which, for three different confidence levels (90%, 95%, 99%) and 52 different sample sizes (1:52) records the width of the bootstrapped confidence interval. You can use this tibble to replicate the plot.
-
-Note that we set the seed because we’re only taking one sample hand for this exercise. As PPBDS points out ``The bootstrap distribution will likely not have the same center as the sampling distribution. In other words, bootstrapping cannot improve the quality of an estimate.’’ If you had not set the seed, you might have drawn a different hand, and your confidence intervals might have been different.
 
 
