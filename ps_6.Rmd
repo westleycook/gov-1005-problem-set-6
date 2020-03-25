@@ -1,0 +1,252 @@
+---
+title: "Problem Set 6"
+author: "Westley Cook"
+date: "3/25/2020"
+output: html_document
+---
+
+##### Worked With: None
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# standard first load
+
+library(tidyverse)
+
+# loading for tables in question 1
+
+library(gt)
+
+# loading to use assignment pipe operator in 1c
+
+library(magrittr)
+
+# loading to use rep_sample_n for 1e
+
+library(infer)
+
+```
+
+## Question 1: Sampling and Confidence Intervals
+
+```{r question_1_setup, echo=FALSE}
+
+create_deck <- function(){
+tibble(value = c(rep(c(as.character(2:10), "J", "Q", "K", "A"), 4)),
+       points = rep(c(2:10, rep(10, 4)), 4),
+       suit = c(rep("diamonds", 13),
+                rep("hearts", 13),
+                rep("clubs", 13),
+                rep("spades", 13)),
+       name = paste(value, suit, sep = " of "))
+}
+
+draw_card <- function(n, report = c("suit", "value", "points", "name")){
+  stopifnot(is.numeric(n))
+  create_deck() %>% 
+  pull(report) %>% 
+  sample(n)
+}
+
+```
+
+#### 1a)
+
+```{r question_1a}
+
+# what does print a call mean?
+
+set.seed(2)
+draw_card(4, report = "name")
+
+```
+
+#### 1b)
+
+```{r question_1b, echo=FALSE}
+
+set.seed(3)
+
+hands <- tibble(draw = map(rep(5, 100), ~ draw_card(5, report = "value"))) %>% 
+  mutate(face = map_lgl(draw, ~ ifelse(any(. %in% c("J", "Q", "K")),
+                                       TRUE,
+                                       FALSE)))
+
+hands %>% 
+  slice(1:5) %>% 
+  gt() %>% 
+  tab_header(title = "Hands of Five Cards",
+             subtitle = "Checking for Face Values") %>% 
+  cols_label(draw = "Draw",
+             face = "Face Cards?")
+
+```
+
+#### 1c)
+
+```{r question_1c, echo=FALSE}
+
+set.seed(4)
+draw_12 <- tibble(card = draw_card(12, report = "name"))
+
+set.seed(4)
+draw_12 %<>% 
+  mutate(points = draw_card(12, report = "points"))
+
+draw_12 %>% 
+  gt() %>% 
+  tab_header(title = "Hand of 12 Cards") %>% 
+  cols_label(card = "Card",
+             points = "Points")
+
+```
+
+#### 1d)
+
+```{r question_1d, echo=FALSE}
+
+deck_mean <- draw_card(52, report = "points") %>% 
+  mean() %>% 
+  round(digits = 3)
+
+```
+
+The mean number of points in our entire deck is **`r deck_mean`**.
+
+#### 1e)
+
+The mean of the bootstrapped resamples is different from the original sample mean because bootstrapping introduces sampling variation - the mean of each of the 1000 resamples is likely to be different than the mean of the original sample (because it's unlikely we'll draw all 12 of the original cards while sampling with replacement) and though the mean of those means should be *close* to the original mean, it's unlikely to be identical.
+
+```{r question_1e, echo=FALSE}
+
+set.seed(5)
+bootstrap <- rep_sample_n(draw_12, size = 12, reps = 1000, replace = TRUE) %>% 
+  group_by(replicate) %>% 
+  summarize(mean_points = mean(points))
+
+sample_mean <- draw_12 %>% 
+  summarize(mean(points)) %>% 
+  pull()
+
+bootstrap_mean <- bootstrap %>% 
+  pull(mean_points) %>% 
+  mean()
+
+bootstrap %>% 
+  ggplot(aes(mean_points)) +
+  geom_histogram(bins = 20) +
+  theme_classic() +
+  labs(title = "Distribution of 1000 Bootstrapped Resamples",
+       subtitle = "From original 12 card sample with mean 7.167",
+       x = "Points",
+       y = "Samples") +
+  geom_vline(xintercept = sample_mean, color = "pink") +
+  geom_text(x = 7.05,
+            y = 50,
+            label = "Original Sample Mean",
+            color = "pink",
+            angle = 90) +  
+  geom_vline(xintercept = bootstrap_mean, color = "light blue") +
+  geom_text(x = 7.3,
+            y = 52,
+            label = "Mean of Bootstraped Samples",
+            color = "light blue",
+            angle = 90)
+
+```
+
+#### 1f)
+
+```{r question_1f, echo=FALSE}
+
+make_intervals <- function(level){
+  lower_prob <- (1 - level) / 2
+  upper_prob <- level + lower_prob
+  bootstrap %>% 
+    summarize(level = level,
+              lower = quantile(mean_points, lower_prob),
+              upper = quantile(mean_points, upper_prob))
+}
+
+ci_80 <- make_intervals(.8)
+ci_90 <- make_intervals(.9)
+ci_95 <- make_intervals(.95)
+ci_99 <- make_intervals(.99)
+
+intervals <- bind_rows(ci_80, ci_90, ci_95, ci_99)
+
+intervals$interval <- paste(
+  round(intervals$lower, digits = 2),
+  round(intervals$upper, digits = 2),
+  sep = " to ")
+
+intervals %>% 
+  select(level, interval) %>%  
+  mutate(level = paste(level * 100, "%", sep = "")) %>%
+  gt() %>% 
+  tab_header(title = "Confidence Intervals",
+             subtitle = "From Bootstrapped Sampling Distribution") %>% 
+  cols_label(level = md("**Level**"),
+             interval = md("**Interval**")) %>% 
+  cols_align(align = "right",
+             columns = vars(interval)) %>% 
+  tab_source_note(source_note = 
+                    "Original sample mean: 7.167")
+
+```
+
+#### 1g)
+
+```{r question_1g, echo=FALSE}
+
+set.seed(6)
+
+width_ci <- function(n, level){
+  lower_prob <- (1 - level) / 2
+  upper_prob <- level + lower_prob
+  sample_n(create_deck(), size = n) %>% 
+    rep_sample_n(size = n, reps = 1000, replace = TRUE) %>% 
+    group_by(replicate) %>%   
+    summarize(mean_points = mean(points)) %>% 
+    summarize(level = level,
+              lower = quantile(mean_points, lower_prob),
+              upper = quantile(mean_points, upper_prob)) %>% 
+    summarize(width = upper - lower) %>% 
+    pull(width)
+}
+
+widths_1 <- tibble(size_n = 1:52)
+
+widths_1 %<>% 
+  mutate(ci_width_90 = map_dbl(size_n, ~ width_ci(n = ., level = .9)),
+         ci_width_95 = map_dbl(size_n, ~ width_ci(n = ., level = .95)),
+         ci_width_99 = map_dbl(size_n, ~ width_ci(n = ., level = .99)))
+
+widths_1 %<>% 
+  pivot_longer(cols = ci_width_90:ci_width_99,
+               names_to = "level",
+               values_to = "ci_width")
+
+widths_1 %>% 
+  ggplot(aes(size_n, ci_width, color = level)) +
+  geom_point() +
+  theme_classic() +
+  labs(title = "Width of Bootstrapped Confidence Intervals for Different Sample Sizes",
+       subtitle = "Calculating the Mean Point Value from a Deck of Cards",
+       x = "Sample Size",
+       y = "Width of Confidence Interval \n (Percentile Method)")
+
+```
+
+Replicate the plot below by completing the following:
+
+Write a function width_ci <- function(n, level) that draws a sample hand of n cards and creates a confidence interval at the appropriate level. As above, use the percentile method on a bootstrapped sampling distribution with 1000 samples to calculate your confidence interval.
+
+Set the seed to 6.
+
+Then, create a tibble which, for three different confidence levels (90%, 95%, 99%) and 52 different sample sizes (1:52) records the width of the bootstrapped confidence interval. You can use this tibble to replicate the plot.
+
+Note that we set the seed because we’re only taking one sample hand for this exercise. As PPBDS points out ``The bootstrap distribution will likely not have the same center as the sampling distribution. In other words, bootstrapping cannot improve the quality of an estimate.’’ If you had not set the seed, you might have drawn a different hand, and your confidence intervals might have been different.
+
+
