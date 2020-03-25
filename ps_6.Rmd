@@ -5,8 +5,6 @@ date: "3/25/2020"
 output: html_document
 ---
 
-##### Worked With: None
-
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
@@ -52,6 +50,8 @@ draw_card <- function(n, report = c("suit", "value", "points", "name")){
 ```
 
 #### 1a)
+
+A call of my draw_card() function with n = 4 and report = "name" produces the following output:
 
 ```{r question_1a, echo=FALSE}
 
@@ -244,5 +244,20 @@ widths_1 %>%
 
 ```
 
+## Question 2: Shiny
 
+##### View the plot from 1g) in my published Shiny app at https://wkcook.shinyapps.io/ps_6_shiny/
 
+```{r question_2, echo=FALSE}
+
+# Specifying width and height to get rid of message output "Saving 7 X 5 in
+# image"
+
+ggsave("ps_6_shiny/dist_plot.png",
+       width = 7,
+       height = 5)
+
+```
+
+### Worked With: None
+Received a little help on 1g) from Dillon Smith at his Study Hall on 3/25
