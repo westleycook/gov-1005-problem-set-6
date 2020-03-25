@@ -1,0 +1,12 @@
+name: ps_6_shiny
+title: ps_6_shiny
+username:
+account: wkcook
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 1996306
+bundleId: 2924638
+url: https://wkcook.shinyapps.io/ps_6_shiny/
+when: 1585171302.5169
+asMultiple: FALSE
+asStatic: FALSE
