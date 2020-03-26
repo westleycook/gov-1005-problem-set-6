@@ -16,7 +16,7 @@ library(tidyverse)
 
 library(gt)
 
-# loading to use assignment pipe operator in 1c
+# loading to use assignment pipe operator
 
 library(magrittr)
 
@@ -30,8 +30,19 @@ library(infer)
 
 ```{r question_1_setup, echo=FALSE}
 
+# This r chunk writes two functions, one to create a deck of cards and another
+# to draw n cards from that deck and report the cards' suit, value, points, or
+# name.
+
+# I wasn't sure at first if I could combine numerics and characters into the
+# same column (for values), but it appears I can - and even better, looking at
+# the resulting tibble reveals that all values in the value column have been
+# automatically coerced into characters. Using c() and rep() to fill the points
+# and suit columns was pretty straightforward. It was my first time using
+# paste() but it was pretty easy to pick up.
+
 create_deck <- function(){
-tibble(value = c(rep(c(as.character(2:10), "J", "Q", "K", "A"), 4)),
+tibble(value = c(rep(c(2:10, "J", "Q", "K", "A"), 4)),
        points = rep(c(2:10, rep(10, 4)), 4),
        suit = c(rep("diamonds", 13),
                 rep("hearts", 13),
@@ -39,6 +50,11 @@ tibble(value = c(rep(c(as.character(2:10), "J", "Q", "K", "A"), 4)),
                 rep("spades", 13)),
        name = paste(value, suit, sep = " of "))
 }
+
+# Set the possible values of the report parameter in this function to make it
+# easier to use; added stopifnot() to throw an error if a non-numeric n value is
+# input. After that, it was straightforward: make the deck, pull the column I
+# want to see, and sample n cards from that column.
 
 draw_card <- function(n, report = c("suit", "value", "points", "name")){
   stopifnot(is.numeric(n))
@@ -55,7 +71,11 @@ A call of my draw_card() function with n = 4 and report = "name" produces the fo
 
 ```{r question_1a, echo=FALSE}
 
-# what does print a call mean?
+# This r chunk sets the seed to 2 (to standardize the random draw) and uses the
+# draw_card() function to pull 4 cards and report their name; the output is
+# printed directly into the HTML document, sans formatting, because the question
+# prompt just asked for us to "print a call" to the function, and the 6a version
+# of the pset shows an output box like the one this generates
 
 set.seed(2)
 draw_card(4, report = "name")
@@ -66,12 +86,23 @@ draw_card(4, report = "name")
 
 ```{r question_1b, echo=FALSE}
 
+# This r chunk sets the seed to 3, creates a tibble of 5-card draws with a
+# column to show whether those draws contain face cards, and prints the first 5
+# rows of that tibble in a nice gt table
+
 set.seed(3)
 
-hands <- tibble(draw = map(rep(5, 100), ~ draw_card(5, report = "value"))) %>% 
-  mutate(face = map_lgl(draw, ~ ifelse(any(. %in% c("J", "Q", "K")),
+# Use map() and rep() to pass the value 5 into draw_card 100 times, saving the 5
+# drawn cards as a list column called "draw". Then mutate() and use map_lgl() to
+# show TRUE if any values in draw are face cards (J, Q, K) and FALSE otherwise
+
+hands <- tibble(draw = map(rep(5, 100), ~ draw_card(., report = "value"))) %>% 
+  mutate(face = map_lgl(draw, ~ ifelse(any(c("J", "Q", "K") %in% .),
                                        TRUE,
                                        FALSE)))
+
+# Slicing the first 5 rows of the hands tibble, passing it through gt() for
+# formatting and adding a title, subtitle, and column labels
 
 hands %>% 
   slice(1:5) %>% 
@@ -87,12 +118,28 @@ hands %>%
 
 ```{r question_1c, echo=FALSE}
 
+# This r chunk draws a hand of 12 cards and prints their names and points in a
+# nice gt table
+
+# Creating a tibble called draw_12 which saves the names of 12 cards drawn
+# randomly from the deck after the seed was set to 4
+
 set.seed(4)
 draw_12 <- tibble(card = draw_card(12, report = "name"))
+
+# Resetting the seed to 4 and using the magrittr assignment pipe operator to add
+# a new column to draw_12, showing the points for each of the 12 cards. Using
+# the draw_card() function without resetting the seed to 4 would result in a
+# random draw of 12 cards, whose point values would be unlikely to match the
+# names I got when creating draw_12; but by setting the seed again, I guarantee
+# the same cards will be drawn, so the point values will match up
 
 set.seed(4)
 draw_12 %<>% 
   mutate(points = draw_card(12, report = "points"))
+
+# Passing the modified draw_12 tibble through gt() and adding a title and column
+# labels
 
 draw_12 %>% 
   gt() %>% 
@@ -105,6 +152,11 @@ draw_12 %>%
 #### 1d)
 
 ```{r question_1d, echo=FALSE}
+
+# This r chunk finds the mean point value for the deck of cards and assigns it
+# to an object to insert in the mad lib. Rounding to 3 digits was pretty
+# arbitrary, but modeled after the display in the pset plots which showed a mean
+# of 7.231
 
 deck_mean <- draw_card(52, report = "points") %>% 
   mean() %>% 
@@ -120,33 +172,71 @@ The mean of the bootstrapped resamples is different from the original sample mea
 
 ```{r question_1e, echo=FALSE}
 
+# This r chunk sets the seed to 5 and creates a distribution of bootstrapped
+# resamples from the hand of 12 cards (draw_12) and uses it to replicate the
+# plot in the question prompt
+
+# I decided not to use a map function here because using rep_sample_n to create
+# the bootstrap distribution was so straightforward. I first took 1000 samples
+# (with replacement) of size 12 from draw_12, grouped by replicate, and
+# summarized the mean of points for each replicate, calling the resulting tibble
+# bootstrap
+
 set.seed(5)
 bootstrap <- rep_sample_n(draw_12, size = 12, reps = 1000, replace = TRUE) %>% 
   group_by(replicate) %>% 
   summarize(mean_points = mean(points))
 
+# I then diverted for a moment to take the mean of the original sample (draw_12)
+# and assign it to an object so I could easily use it to add a vertical line to
+# the plot below
+
 sample_mean <- draw_12 %>% 
   summarize(mean(points)) %>% 
   pull()
+
+# I then branched off that diversion into another similar one, taking the mean
+# of the bootstrap distribution and saving it to an object to be easily inserted
+# into the plot below
 
 bootstrap_mean <- bootstrap %>% 
   pull(mean_points) %>% 
   mean()
 
+# I then used the bootstrap distribution to plot a histogram showing the
+# distribution of means across the 1,000 replications
+
 bootstrap %>% 
   ggplot(aes(mean_points)) +
+  
+# setting bin number to match plot in question prompt  
+  
   geom_histogram(bins = 20) +
+  
+# theme_classic for easy formatting of a clean display
+  
   theme_classic() +
+  
+# adding title, subtitle, and nice-looking axis titles
+  
   labs(title = "Distribution of 1000 Bootstrapped Resamples",
        subtitle = "From original 12 card sample with mean 7.167",
        x = "Points",
        y = "Samples") +
+  
+# adding vertical line at the location of the sample mean, then adding text in a
+# matching color to describe the meaning of the line
+  
   geom_vline(xintercept = sample_mean, color = "pink") +
   geom_text(x = 7.05,
             y = 50,
             label = "Original Sample Mean",
             color = "pink",
             angle = 90) +  
+  
+# adding vertical line at the location of the bootstrap mean, then adding text
+# in a matching color to describe it
+  
   geom_vline(xintercept = bootstrap_mean, color = "light blue") +
   geom_text(x = 7.3,
             y = 52,
@@ -160,6 +250,16 @@ bootstrap %>%
 
 ```{r question_1f, echo=FALSE}
 
+# This r chunk creates confidence intervals from the bootstrapped resample
+# distribution and shows the intervals for each level in a gt table
+
+# Decided first to define a function with level as a parameter to report the
+# intervals, knowing I'd need to use essentially the same code four different
+# times to make CIs at each of four different confidence intervals. I took the
+# lower_prob and upper_prob definitions from ch. 10 of PPBDS. I split up the
+# lower and upper bounds of the intervals into different columns so I could
+# easily subtract lower from upper or otherwise modify them if necessary
+
 make_intervals <- function(level){
   lower_prob <- (1 - level) / 2
   upper_prob <- level + lower_prob
@@ -169,23 +269,52 @@ make_intervals <- function(level){
               upper = quantile(mean_points, upper_prob))
 }
 
+# I then called on that function four times, at each of the levels specified, to
+# create four dataframes, each one with three variables: level, lower bound, and
+# upper bound
+
 ci_80 <- make_intervals(.8)
 ci_90 <- make_intervals(.9)
 ci_95 <- make_intervals(.95)
 ci_99 <- make_intervals(.99)
 
+# I then combined those four dataframes into one
+
 intervals <- bind_rows(ci_80, ci_90, ci_95, ci_99)
 
-# explain why you formatted it this way instead of in tuples
+# I then added a column combining the lower and upper bounds to display them as
+# an interval by using my new friend the paste() function. I think it's probably
+# an unconventional use, but it's purely for aesthetics in the gt table below. I
+# had worked up to this point before seeing the updated Pset 6A, and the
+# original Pset 6 didn't have a model table to replicate, so I initially had
+# this formatted differently; it was easier to use paste() to make the table
+# look the same than to reconfigure my code to actually produce the interval as
+# output from the make_interval function
 
 intervals$interval <- paste(
-  round(intervals$lower, digits = 2),
-  round(intervals$upper, digits = 2),
-  sep = " to ")
+  "(",
+  round(intervals$lower, digits = 1),
+  ", ",
+  round(intervals$upper, digits = 1),
+  ")",
+  sep = "")
+
+# Selecting the level and interval columns and using mutate() and
+# paste() to change the formatting of level so it looks a little nicer in the gt
+# table
 
 intervals %>% 
   select(level, interval) %>%  
   mutate(level = paste(level * 100, "%", sep = "")) %>%
+  
+# Table time! Passing the above through gt() and adding a title and subtitle,
+# along with column labels (bolded using md() for a nicer appearance), column
+# formatting (I think it looks better with both columns aligned along the edges
+# rather than centered; level defaults to left alignment, but I had to
+# explicitly set the alignment of interval to "right"), and a source note. It's
+# not a perfect replication of the table in the question prompt, and the reason
+# for that is that I think what I've done looks better
+  
   gt() %>% 
   tab_header(title = "Confidence Intervals for Average Point Value",
              subtitle = "Bootstrapped Resamples on a 12 Card Hand") %>% 
@@ -194,7 +323,7 @@ intervals %>%
   cols_align(align = "right",
              columns = vars(interval)) %>% 
   tab_source_note(source_note = 
-                    "Original Sample Mean of 7.167")
+                    "Original Sample Mean: 7.167")
 
 ```
 
@@ -202,7 +331,25 @@ intervals %>%
 
 ```{r question_1g, echo=FALSE}
 
+# This r chunk writes the function width_ci to take a sample of n cards and
+# produce the CI at a specified level. It uses that function to make a tibble
+# with sample sizes 2:52 and confidence levels .9, .95, and .99. It then plots
+# the resulting tibble to show how CIs differ based on sample size and
+# confidence level
+
+# Setting the seed as instructed
+
 set.seed(6)
+
+# This function borrows heavily from the make_intervals function introduced in
+# 1f. The use of level, including lower_prob and upper_prob assignments, is
+# exactly the same, and the process of using rep_sample_n, group_by(replicate),
+# and summarize() to get the mean points in each replicate is also identical.
+# The big differences are that 1) instead of using the bootstrap dataframe as
+# the tbl argument of rep_sample_n, this uses a sampling of size n from
+# create_deck(); 2) instead of having the function produce the upper and lower
+# bounds of the interval, I subtract lower from upper and pull() the result so
+# the function outputs just the width of the interval
 
 width_ci <- function(n, level){
   lower_prob <- (1 - level) / 2
@@ -218,26 +365,54 @@ width_ci <- function(n, level){
     pull(width)
 }
 
-widths_1 <- tibble(size_n = 2:52)
+# Making a tibble of sample sizes
 
-widths_1 %<>% 
+widths <- tibble(size_n = 2:52)
+
+# Mutating the widths tibble to add three new variables, each of which saves the
+# CI widths at a given level. It took me a long time to figure out how to do
+# this, because I couldn't figure out how to pass multiple parameters through
+# width_ci using a map function (using n = . to pass the size_n values through
+# to the width_ci() function and manually setting the level was what finally
+# worked!). It was pretty frustrating for a while, but we got there in the end.
+
+widths %<>% 
   mutate(width_90 = map_dbl(size_n, ~ width_ci(n = ., level = .9)),
          width_95 = map_dbl(size_n, ~ width_ci(n = ., level = .95)),
          width_99 = map_dbl(size_n, ~ width_ci(n = ., level = .99)))
 
-widths_1 %<>% 
+# Using pivot_longer to modify widths, giving me one column with all the sample
+# sizes (each repeated three times, another with the confidence level, and
+# another with the width of the CI)
+
+widths %<>% 
   pivot_longer(cols = width_90:width_99,
                names_to = "confidence_level",
                values_to = "ci_width")
 
-widths_1 %>% 
+# It was simple enough at that point to create this plot, putting sample size on
+# the x axis, ci_width on the y axis, and mapping confidence level by color.
+# Used geom_point() to get the scatterplot and theme_classic() for its nice
+# clean look
+
+widths %>% 
   ggplot(aes(size_n, ci_width, color = confidence_level)) +
   geom_point() +
   theme_classic() +
-  labs(title = "Width of Bootstrapped Confidence Intervals for Different Sample Sizes",
+  
+# Adding title, subtitle, and axis labels, replicating text from the plot.
+# Formatting of title = "" is a bit wonky to prevent it from going past 80
+# characters on a single line
+  
+  labs(title = 
+        "Width of Bootstrapped Confidence Intervals for Different Sample Sizes",
        subtitle = "Calculating the Mean Point Value from a Deck of Cards",
        x = "Sample Size",
        y = "Width of Confidence Interval \n (Percentile Method)") +
+  
+# Adding a legend title and changing the displayed names of the confidence
+# levels
+  
   scale_color_discrete(name="Confidence Level",
                          breaks=c("width_90", "width_95", "width_99"),
                          labels=c("90%", "95%", "99%"))
@@ -246,18 +421,19 @@ widths_1 %>%
 
 ## Question 2: Shiny
 
-##### View the plot from 1g) in my published Shiny app at https://wkcook.shinyapps.io/ps_6_shiny/
-
 ```{r question_2, echo=FALSE}
 
-# Specifying width and height to get rid of message output "Saving 7 X 5 in
-# image"
+# This r chunk saves the plot from 1g) to the shiny directory, specifying width
+# and height within ggsave() to get rid of the message output it otherwise gives
+# ("Saving 7 X 5 in image")
 
 ggsave("ps_6_shiny/dist_plot.png",
        width = 7,
        height = 5)
 
 ```
+
+View the plot from 1g) in my published Shiny app at https://wkcook.shinyapps.io/ps_6_shiny/
 
 ### Worked With: None
 Received a little help on 1g) from Dillon Smith at his Study Hall on 3/25
